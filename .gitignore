@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment variables (les fichiers *.example restent versionnés)
+.env
+.env.*
+!.env.example
+!.env.test.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+
+# Prisma
+backend/prisma/dev.db
+
+# Base de données locale (mongod --replSet, données + logs de dev)
+.local/
+
+# Test / coverage
+coverage/

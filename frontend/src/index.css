@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+/* Charte graphique AIESEC — voir token_color.md à la racine du projet */
+@theme {
+  --font-sans: system-ui, "Segoe UI", Roboto, sans-serif;
+
+  --color-primary: #037ef3;
+  --color-primary-hover: #0266c4;
+  --color-primary-active: #0256a6;
+  --color-primary-light: #e8f3ff;
+
+  --color-secondary: #0cb9c1;
+  --color-secondary-hover: #0aa1a8;
+  --color-secondary-active: #088a90;
+  --color-secondary-light: #e8fafb;
+
+  --color-success: #00c16e;
+  --color-success-light: #e8fff5;
+  --color-success-dark: #008a4e;
+
+  --color-error: #f85a40;
+  --color-error-light: #fff0ed;
+  --color-error-dark: #c93622;
+
+  --color-warning: #f48924;
+  --color-warning-light: #fff5e8;
+  --color-warning-dark: #c7670d;
+
+  --color-info: #037ef3;
+  --color-info-light: #e8f3ff;
+
+  --color-highlight: #ffc845;
+  --color-highlight-light: #fff9e6;
+
+  --color-purple: #7552cc;
+  --color-purple-light: #f1edff;
+
+  --color-cyan: #0cb9c1;
+  --color-cyan-light: #e8fafb;
+
+  --color-neutral-900: #1f2937;
+  --color-neutral-800: #374151;
+  --color-neutral-700: #52565e;
+  --color-neutral-600: #6b7280;
+  --color-neutral-500: #9ca3af;
+  --color-neutral-400: #caccd1;
+  --color-neutral-300: #d1d5db;
+  --color-neutral-200: #e5e7eb;
+  --color-neutral-100: #f3f4f7;
+  --color-neutral-50: #f9fafb;
+}
+
+body {
+  @apply bg-neutral-100 text-neutral-900 antialiased;
+}

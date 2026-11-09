@@ -1,0 +1,715 @@
+// Schéma Prisma — LC Cocody Digital Hub
+// Phase 2 — entités fondamentales (User, LocalCommittee, Department, Team,
+// Mandate, MemberProfile) + Phase 6 — Documents et archives (Folder,
+// Document, DocumentVersion) et AuditLog minimal (actions documentaires
+// uniquement, RG-06 — le reste des actions auditées viendra en Phase 14).
+// Les autres entités (Project, Task, ...) seront ajoutées au fil des phases.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("MONGODB_URI")
+}
+
+enum Role {
+  SUPER_ADMIN
+  LCP
+  VP
+  TEAM_LEADER
+  MEMBER
+}
+
+enum MandateStatus {
+  ACTIVE
+  CLOSED
+}
+
+enum DocumentVisibility {
+  PUBLIC
+  INTERNAL
+  DEPARTMENT
+  CONFIDENTIAL
+  RESTRICTED
+}
+
+enum ProjectStatus {
+  PLANNED
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  OVERDUE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  EXCUSED
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum PartnerStatus {
+  PROSPECT
+  CONTACTED
+  MEETING
+  NEGOTIATION
+  PARTNER
+  LOST
+}
+
+enum ReportType {
+  MONTHLY
+  DEPARTMENTAL
+  MANDATE
+}
+
+enum NotificationType {
+  TASK_ASSIGNED
+  TASK_DUE_SOON
+  TASK_OVERDUE
+  DOCUMENT_NEW
+  EVENT_NEW
+  MEETING_NEW
+  REPORT_NEW
+  TRANSITION
+}
+
+enum TransitionStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum AuditAction {
+  LOGIN
+  DOCUMENT_UPLOADED
+  DOCUMENT_DOWNLOADED
+  DOCUMENT_UPDATED
+  DOCUMENT_DELETED
+  MEMBER_CREATED
+  MEMBER_UPDATED
+  TASK_CREATED
+}
+
+model LocalCommittee {
+  id   String @id @default(auto()) @map("_id") @db.ObjectId
+  name String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  departments Department[]
+  mandates    Mandate[]
+}
+
+model Department {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  isActive    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  localCommitteeId String         @db.ObjectId
+  localCommittee   LocalCommittee @relation(fields: [localCommitteeId], references: [id])
+
+  teams          Team[]
+  memberProfiles MemberProfile[]
+  folders        Folder[]
+  documents      Document[]
+  projects       Project[]
+  events         Event[]
+  meetings       Meeting[]
+  transactions   FinancialTransaction[]
+  kpis           KPI[]
+  reports        Report[]
+
+  @@index([localCommitteeId])
+}
+
+model Team {
+  id   String @id @default(auto()) @map("_id") @db.ObjectId
+  name String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  departmentId String     @db.ObjectId
+  department   Department @relation(fields: [departmentId], references: [id])
+
+  mandateId String  @db.ObjectId
+  mandate   Mandate @relation(fields: [mandateId], references: [id])
+
+  memberProfiles MemberProfile[]
+
+  @@index([departmentId])
+  @@index([mandateId])
+}
+
+model Mandate {
+  id        String        @id @default(auto()) @map("_id") @db.ObjectId
+  label     String
+  startDate DateTime
+  endDate   DateTime
+  status    MandateStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  localCommitteeId String         @db.ObjectId
+  localCommittee   LocalCommittee @relation(fields: [localCommitteeId], references: [id])
+
+  teams          Team[]
+  memberProfiles MemberProfile[]
+  documents      Document[]
+  projects       Project[]
+  events         Event[]
+  meetings       Meeting[]
+  transactions   FinancialTransaction[]
+  partners       Partner[]
+  kpis           KPI[]
+  reports        Report[]
+  transitionsOutgoing TransitionPackage[] @relation("TransitionOutgoing")
+  transitionsIncoming TransitionPackage[] @relation("TransitionIncoming")
+
+  @@index([localCommitteeId])
+}
+
+model User {
+  id           String  @id @default(auto()) @map("_id") @db.ObjectId
+  email        String  @unique
+  passwordHash String
+  role         Role    @default(MEMBER)
+  isActive     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberProfile     MemberProfile?
+  foldersOwned      Folder[]
+  documentsAuthored Document[]
+  versionsUploaded  DocumentVersion[]
+  auditLogs         AuditLog[]
+  projectsOwned     Project[]
+  tasksAssigned     Task[]            @relation("TaskAssignee")
+  tasksCreated      Task[]            @relation("TaskCreatedBy")
+  eventsOrganized   Event[]
+  attendances       Attendance[]
+  meetingsOrganized Meeting[]
+  decisionsOwned    MeetingDecision[] @relation("MeetingDecisionResponsible")
+  transactionsRecorded FinancialTransaction[]
+  partnersOwned     Partner[]
+  partnerActivities PartnerActivity[]
+  reportsAuthored   Report[]
+  kpisCreated       KPI[]
+  notifications     Notification[]
+  knowledgeArticles KnowledgeArticle[]
+  lessonsLearned    LessonLearned[]
+  transitionsCreated TransitionPackage[]
+}
+
+model MemberProfile {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  firstName String
+  lastName  String
+  phone     String?
+  position  String?
+  joinedAt  DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String @unique @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id])
+
+  departmentId String?     @db.ObjectId
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  teamId String? @db.ObjectId
+  team   Team?   @relation(fields: [teamId], references: [id])
+
+  mandateId String?  @db.ObjectId
+  mandate   Mandate? @relation(fields: [mandateId], references: [id])
+
+  @@index([departmentId])
+  @@index([teamId])
+  @@index([mandateId])
+}
+
+model Folder {
+  id         String             @id @default(auto()) @map("_id") @db.ObjectId
+  name       String
+  visibility DocumentVisibility @default(INTERNAL)
+
+  parentFolderId String? @db.ObjectId
+  parentFolder   Folder? @relation("FolderHierarchy", fields: [parentFolderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subFolders     Folder[] @relation("FolderHierarchy")
+
+  departmentId String?     @db.ObjectId
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  ownerId String @db.ObjectId
+  owner   User   @relation(fields: [ownerId], references: [id])
+
+  documents Document[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([parentFolderId])
+  @@index([departmentId])
+}
+
+model Document {
+  id               String             @id @default(auto()) @map("_id") @db.ObjectId
+  name             String
+  description      String?
+  category         String?
+  tags             String[]
+  visibility       DocumentVisibility @default(INTERNAL)
+  currentVersionId String?            @db.ObjectId
+  isDeleted        Boolean            @default(false)
+
+  folderId String? @db.ObjectId
+  folder   Folder? @relation(fields: [folderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  authorId String @db.ObjectId
+  author   User   @relation(fields: [authorId], references: [id])
+
+  departmentId String?     @db.ObjectId
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  mandateId String?  @db.ObjectId
+  mandate   Mandate? @relation(fields: [mandateId], references: [id])
+
+  versions     DocumentVersion[]
+  transactions FinancialTransaction[]
+  reports      Report[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([folderId])
+  @@index([authorId])
+  @@index([departmentId])
+  @@index([tags])
+}
+
+model DocumentVersion {
+  id            String  @id @default(auto()) @map("_id") @db.ObjectId
+  versionNumber Int
+  storageKey    String
+  originalName  String
+  mimeType      String
+  size          Int
+  changeNote    String?
+
+  documentId String   @db.ObjectId
+  document   Document @relation(fields: [documentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  uploadedById String @db.ObjectId
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([documentId])
+}
+
+model Project {
+  id          String        @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  status      ProjectStatus @default(PLANNED)
+  startDate   DateTime?
+  endDate     DateTime?
+
+  departmentId String?     @db.ObjectId
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  mandateId String?  @db.ObjectId
+  mandate   Mandate? @relation(fields: [mandateId], references: [id])
+
+  ownerId String @db.ObjectId
+  owner   User   @relation(fields: [ownerId], references: [id])
+
+  tasks         Task[]
+  lessonLearned LessonLearned?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([departmentId])
+  @@index([mandateId])
+  @@index([ownerId])
+}
+
+model Task {
+  id          String       @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+
+  projectId String?  @db.ObjectId
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  assigneeId String? @db.ObjectId
+  assignee   User?   @relation("TaskAssignee", fields: [assigneeId], references: [id])
+
+  createdById String @db.ObjectId
+  createdBy   User   @relation("TaskCreatedBy", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([assigneeId])
+}
+
+model Event {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  description String?
+  startDate   DateTime
+  endDate     DateTime
+  location    String?
+
+  departmentId String?     @db.ObjectId
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  mandateId String?  @db.ObjectId
+  mandate   Mandate? @relation(fields: [mandateId], references: [id])
+
+  organizerId String @db.ObjectId
+  organizer   User   @relation(fields: [organizerId], references: [id])
+
+  attendances Attendance[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([departmentId])
+  @@index([mandateId])
+}
+
+model Attendance {
+  id     String           @id @default(auto()) @map("_id") @db.ObjectId
+  status AttendanceStatus @default(PRESENT)
+
+  eventId String @db.ObjectId
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id])
+
+  checkedInAt DateTime @default(now())
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
+}
+
+model Meeting {
+  id      String   @id @default(auto()) @map("_id") @db.ObjectId
+  title   String
+  date    DateTime
+  agenda  String?
+  minutes String?
+
+  departmentId String?     @db.ObjectId
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  mandateId String?  @db.ObjectId
+  mandate   Mandate? @relation(fields: [mandateId], references: [id])
+
+  organizerId String @db.ObjectId
+  organizer   User   @relation(fields: [organizerId], references: [id])
+
+  decisions MeetingDecision[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([departmentId])
+  @@index([mandateId])
+}
+
+model MeetingDecision {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  description String
+  dueDate     DateTime?
+
+  meetingId String  @db.ObjectId
+  meeting   Meeting @relation(fields: [meetingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  responsibleId String @db.ObjectId
+  responsible   User   @relation("MeetingDecisionResponsible", fields: [responsibleId], references: [id])
+
+  generatedTaskId String? @db.ObjectId
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([meetingId])
+}
+
+model FinancialTransaction {
+  id          String          @id @default(auto()) @map("_id") @db.ObjectId
+  type        TransactionType
+  amount      Float
+  currency    String          @default("XOF")
+  category    String
+  description String?
+  date        DateTime
+  isDeleted   Boolean         @default(false)
+
+  departmentId String?     @db.ObjectId
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  mandateId String?  @db.ObjectId
+  mandate   Mandate? @relation(fields: [mandateId], references: [id])
+
+  documentId String?   @db.ObjectId
+  document   Document? @relation(fields: [documentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  recordedById String @db.ObjectId
+  recordedBy   User   @relation(fields: [recordedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([departmentId])
+  @@index([mandateId])
+  @@index([documentId])
+  @@index([type])
+}
+
+model Partner {
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  status       PartnerStatus @default(PROSPECT)
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+
+  responsibleId String @db.ObjectId
+  responsible   User   @relation(fields: [responsibleId], references: [id])
+
+  mandateId String?  @db.ObjectId
+  mandate   Mandate? @relation(fields: [mandateId], references: [id])
+
+  activities PartnerActivity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([responsibleId])
+  @@index([mandateId])
+  @@index([status])
+}
+
+/// Historique + notes de suivi d'un partenaire (chaque entrée peut aussi
+/// tracer un changement de statut dans le pipeline PROSPECT→...→PARTNER/LOST).
+model PartnerActivity {
+  id         String         @id @default(auto()) @map("_id") @db.ObjectId
+  note       String
+  fromStatus PartnerStatus?
+  toStatus   PartnerStatus?
+
+  partnerId String  @db.ObjectId
+  partner   Partner @relation(fields: [partnerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  authorId String @db.ObjectId
+  author   User   @relation(fields: [authorId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([partnerId])
+}
+
+model KPI {
+  id           String @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  target       Float
+  currentValue Float  @default(0)
+  unit         String?
+  period       String
+
+  departmentId String?     @db.ObjectId
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  mandateId String?  @db.ObjectId
+  mandate   Mandate? @relation(fields: [mandateId], references: [id])
+
+  createdById String @db.ObjectId
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([departmentId])
+  @@index([mandateId])
+}
+
+/// Le contenu texte permet de générer un export (PDF/Excel/CSV) plus tard
+/// sans changer le schéma — voir ARCHITECTURE_DECISIONS.md (Phase 12).
+model Report {
+  id      String     @id @default(auto()) @map("_id") @db.ObjectId
+  title   String
+  type    ReportType
+  period  String
+  content String?
+
+  departmentId String?     @db.ObjectId
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  mandateId String?  @db.ObjectId
+  mandate   Mandate? @relation(fields: [mandateId], references: [id])
+
+  authorId String @db.ObjectId
+  author   User   @relation(fields: [authorId], references: [id])
+
+  documentId String?   @db.ObjectId
+  document   Document? @relation(fields: [documentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([departmentId])
+  @@index([mandateId])
+  @@index([type])
+}
+
+model Notification {
+  id      String           @id @default(auto()) @map("_id") @db.ObjectId
+  type    NotificationType
+  message String
+  isRead  Boolean          @default(false)
+
+  relatedEntityType String?
+  relatedEntityId   String? @db.ObjectId
+
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, isRead])
+}
+
+/// AuditLog minimal (Phase 6, actions documentaires uniquement — RG-06).
+/// Le périmètre complet (toutes actions, API de consultation) est prévu Phase 14.
+model AuditLog {
+  id         String      @id @default(auto()) @map("_id") @db.ObjectId
+  action     AuditAction
+  entityType String
+  entityId   String?     @db.ObjectId
+  metadata   Json?
+
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType, entityId])
+}
+
+model KnowledgeArticle {
+  id         String             @id @default(auto()) @map("_id") @db.ObjectId
+  title      String
+  content    String
+  category   String?
+  tags       String[]
+  visibility DocumentVisibility @default(INTERNAL)
+
+  authorId String @db.ObjectId
+  author   User   @relation(fields: [authorId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([authorId])
+  @@index([tags])
+  @@index([category])
+}
+
+/// Une entrée par projet (Phase 16 : "Pour chaque projet"), créée/mise à
+/// jour via un upsert plutôt qu'un CRUD classique.
+model LessonLearned {
+  id              String  @id @default(auto()) @map("_id") @db.ObjectId
+  whatWorked      String?
+  whatDidNotWork  String?
+  difficulties    String?
+  recommendations String?
+  lessonsLearned  String?
+
+  projectId String  @unique @db.ObjectId
+  project   Project @relation(fields: [projectId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  authorId String @db.ObjectId
+  author   User   @relation(fields: [authorId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TransitionPackage {
+  id              String           @id @default(auto()) @map("_id") @db.ObjectId
+  status          TransitionStatus @default(DRAFT)
+  recommendations String?
+
+  outgoingMandateId String  @db.ObjectId
+  outgoingMandate   Mandate @relation("TransitionOutgoing", fields: [outgoingMandateId], references: [id])
+
+  incomingMandateId String?  @db.ObjectId
+  incomingMandate   Mandate? @relation("TransitionIncoming", fields: [incomingMandateId], references: [id])
+
+  createdById String @db.ObjectId
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  checklist TransitionChecklistItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([outgoingMandateId])
+  @@index([incomingMandateId])
+}
+
+model TransitionChecklistItem {
+  id     String  @id @default(auto()) @map("_id") @db.ObjectId
+  label  String
+  isDone Boolean @default(false)
+
+  transitionPackageId String            @db.ObjectId
+  transitionPackage    TransitionPackage @relation(fields: [transitionPackageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([transitionPackageId])
+}
